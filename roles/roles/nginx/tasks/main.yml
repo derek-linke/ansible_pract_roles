@@ -1,0 +1,55 @@
+---
+# tasks file for nginx
+
+
+    - name: install tools
+      apt:
+        name: "{{item}}"
+        state: present
+      with_items:
+        - python-httplib2
+
+    - name: install nginx
+      apt:
+        name: nginx
+        state: present
+        
+
+    - name: Configure nginx
+      template:
+        src: nginxconf.j2
+        dest: /etc/nginx/sites-available/{{ item.key }}
+        mode: 0644
+      with_dict: "{{ sites }}"
+      notify: restart nginx
+
+    - name: get active sites
+      shell: ls -1 /etc/nginx/sites-enabled
+      register: active
+
+    - name: debug
+      debug:
+        msg: "Item: {{ item }} "
+      with_items: "{{ active.stdout_lines }}"
+
+    - name: de-activate default nginx site
+      file:
+        path: "/etc/nginx/sites-enabled/{{ item }}"
+        state: absent
+      with_items: "{{ active.stdout_lines }}"
+      when: item not in sites
+      notify: restart nginx
+
+    - name: activate demo nginx
+      file:
+        src: /etc/nginx/sites-available/{{ item.key }}
+        dest: /etc/nginx/sites-enabled/{{ item.key }}
+        state: link
+      with_dict: "{{ sites }}"
+      notify: restart nginx
+
+    - name: Ensure nginx Started
+      service:
+        name: nginx
+        state: started
+        enabled: yes
